@@ -6,7 +6,7 @@ from skimage import io
 
 class cameraFeed:
     # url that will have latest snapshot
-    LATEST_SNAPSHOT_URL = "http://192.168.86.30:8080/shot.jpg"
+    LATEST_SNAPSHOT_URL = "http://192.168.86.33:8080/shot.jpg"
 
     def getLatestSnapShot(self):
 

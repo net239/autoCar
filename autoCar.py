@@ -8,6 +8,7 @@ import time
 from logging.handlers import TimedRotatingFileHandler
 import pygame
 import pandas as pd
+import cv2
 
 from carController import carController
 from cameraFeed import cameraFeed
@@ -32,9 +33,15 @@ if __name__ == "__main__":
                         help='Data Directory',
                         required=False, default='data/')
 
-    parser.add_argument('-m', '--mode',
-                        help='mode: train/run',
+    parser.add_argument('-o', '--mode',
+                        help='mode: train - train new model/ ' +
+                             'run - run using given model/ ' +
+                             'show - display model data',
                         required=False, default='train')
+
+    parser.add_argument('-m', '--model',
+                        help='Model file',
+                        required=False, default='data/autocar.df')
 
     args = parser.parse_args()
     print (args)
@@ -67,17 +74,43 @@ if __name__ == "__main__":
     pygame.display.set_caption('AutoCar')
     window = pygame.display.set_mode((300, 300))
 
-    # Car remote controller
-    carController = carController()
-
-    # Camera feed
-    cameraFeed = cameraFeed()
-
-    # create a pandas object to store images and corresponding key press
-    training_data = pd.DataFrame()
-
-    if args.mode == 'train' or args.mode == 'run':
+    if args.mode == 'show':
         logger.info("Operating Mode: " + args.mode)
+
+        # load model
+        logger.info("Show training data: " + args.model)
+        df = pd.read_pickle(args.model)
+        for index, row in df.iterrows():
+
+            # show the key write on image
+            img = row["frame"]
+            txt = 'key=' + str(row["key"])
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(img, txt, (30, 30), font, 0.8,
+                        (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.imshow("AutoCar Cam", img)
+
+            event = pygame.event.wait()
+            while True:
+                if event.type == pygame.KEYDOWN:
+                    break
+                else:
+                    event = pygame.event.wait()
+
+            if event.key == pygame.K_x:
+                break
+
+    elif args.mode == 'train' or args.mode == 'run':
+        logger.info("Operating Mode: " + args.mode)
+
+        # Car remote controller
+        carController = carController()
+
+        # Camera feed
+        cameraFeed = cameraFeed()
+
+        # create a pandas object to store images and corresponding key press
+        training_data = pd.DataFrame()
 
         running = True
         while running:
@@ -88,19 +121,25 @@ if __name__ == "__main__":
             for event in ev:
 
                 capture = False
+                dir = ""
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_w:
+                    if event.key == pygame.K_w or event.key == pygame.K_UP:
                         carController.moveFront()
+                        dir = "F"
                         capture = True
-                    elif event.key == pygame.K_s:
+                    elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
                         carController.moveBack()
                         # NOTE: do not capture back movement
+                        dir = "B"
                         capture = False
-                    elif event.key == pygame.K_a:
+                    elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
                         carController.turnLeft()
+                        dir = "L"
                         capture = True
-                    elif event.key == pygame.K_d:
+                    elif (event.key == pygame.K_d or
+                          event.key == pygame.K_RIGHT):
                         carController.turnRight()
+                        dir = "R"
                         capture = True
                     elif event.key == pygame.K_x:
                         carController.stop()
@@ -115,10 +154,9 @@ if __name__ == "__main__":
                 # store the data set
                 df = pd.DataFrame.from_records([{
                                    "frame": cameraFeed.getLatestSnapShot(),
-                                   "key": event.key}])
+                                   "key": dir}])
 
-                training_data.append(df)
-                logger.info("Saved frame: %d", event.key)
+                training_data = training_data.append(df)
 
         # stop the car
         carController.stop()
