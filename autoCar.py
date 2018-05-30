@@ -35,7 +35,8 @@ if __name__ == "__main__":
 
     parser.add_argument('-o', '--mode',
                         help='mode: train - train new model/ ' +
-                             'run - run using given model/ ' +
+                             'auto - run using given model/ ' +
+                             'manual - run using manual keyboard/ ' +
                              'show - display model data',
                         required=False, default='train')
 
@@ -74,6 +75,7 @@ if __name__ == "__main__":
     pygame.display.set_caption('AutoCar')
     window = pygame.display.set_mode((300, 300))
 
+    # load and show a given set of trainign data
     if args.mode == 'show':
         logger.info("Operating Mode: " + args.mode)
 
@@ -82,7 +84,7 @@ if __name__ == "__main__":
         df = pd.read_pickle(args.model)
         for index, row in df.iterrows():
 
-            # show the key write on image
+            # write the key on image
             img = row["frame"]
             txt = 'key=' + str(row["key"])
             font = cv2.FONT_HERSHEY_SIMPLEX
@@ -90,6 +92,7 @@ if __name__ == "__main__":
                         (255, 255, 255), 1, cv2.LINE_AA)
             cv2.imshow("AutoCar Cam", img)
 
+            # wait for a key press
             event = pygame.event.wait()
             while True:
                 if event.type == pygame.KEYDOWN:
@@ -100,17 +103,19 @@ if __name__ == "__main__":
             if event.key == pygame.K_x:
                 break
 
-    elif args.mode == 'train' or args.mode == 'run':
+    # Training mode or runnign mode
+elif args.mode == 'train' or args.mode == 'auto' or args.mode == 'manual':
         logger.info("Operating Mode: " + args.mode)
 
         # Car remote controller
-        carController = carController()
+        carController = carController(logger, config)
 
-        # Camera feed
-        cameraFeed = cameraFeed()
+        if args.mode == 'train' or args.mode == 'auto':
+            # Camera feed
+            cameraFeed = cameraFeed(logger, config)
 
-        # create a pandas object to store images and corresponding key press
-        training_data = pd.DataFrame()
+            # create a pandas object to store images & corresponding direction
+            training_data = pd.DataFrame()
 
         running = True
         while running:
@@ -149,12 +154,14 @@ if __name__ == "__main__":
                 elif event.type == pygame.KEYUP:
                     carController.stop()
 
-            if capture:
+            if args.mode == 'train' and capture is True:
 
                 # store the data set
+                img = cameraFeed.getLatestSnapShot(display=False)
+                img = cameraFeed.processSnapShot(img, display=True)
                 df = pd.DataFrame.from_records([{
-                                   "frame": cameraFeed.getLatestSnapShot(),
-                                   "key": dir}])
+                        "frame": img,
+                        "key": dir}])
 
                 training_data = training_data.append(df)
 

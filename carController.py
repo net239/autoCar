@@ -10,13 +10,23 @@ class carController:
     PIN_FORWARD = 5
     PIN_REVERSE = 6
 
+    # path of the uno board device
+    uno_device = None
+
     # represents the board - arduino uno
     board = None
 
-    def __init__(self):
+    # initialize the board and set all pins to "low"
+    def __init__(self, logger, config):
+        self.logger = logger
+        self.config = config
+        self.uno_device = config["uno_device"]
+
         # set all pins low
-        self.board = pluto.Uno('/dev/cu.usbmodem1411')
+        self.board = pluto.Uno(self.uno_device)
         self.stop()
+
+        self.logger.info("Initialized Uno Controller: " + self.uno_device)
 
     def turnLeft(self):
         self.board.pin(self.PIN_RIGHT).low()
