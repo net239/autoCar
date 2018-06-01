@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
             # write the key on image
             img = row["frame"]
-            txt = 'key=' + str(row["key"])
+            txt = 'key: 0x' + hex(row["key"])
             font = cv2.FONT_HERSHEY_SIMPLEX
             cv2.putText(img, txt, (30, 30), font, 0.8,
                         (255, 255, 255), 1, cv2.LINE_AA)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
                 break
 
     # Training mode or runnign mode
-elif args.mode == 'train' or args.mode == 'auto' or args.mode == 'manual':
+    elif args.mode == 'train' or args.mode == 'auto' or args.mode == 'manual':
         logger.info("Operating Mode: " + args.mode)
 
         # Car remote controller
@@ -126,28 +126,25 @@ elif args.mode == 'train' or args.mode == 'auto' or args.mode == 'manual':
             for event in ev:
 
                 capture = False
-                dir = ""
+
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_w or event.key == pygame.K_UP:
                         carController.moveFront()
-                        dir = "F"
                         capture = True
                     elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
                         carController.moveBack()
+
                         # NOTE: do not capture back movement
-                        dir = "B"
                         capture = False
                     elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
                         carController.turnLeft()
-                        dir = "L"
                         capture = True
                     elif (event.key == pygame.K_d or
                           event.key == pygame.K_RIGHT):
                         carController.turnRight()
-                        dir = "R"
                         capture = True
                     elif event.key == pygame.K_x:
-                        carController.stop()
+                        carController.stop(wheelsStraight=True)
 
                         # break from this loop
                         running = False
@@ -159,6 +156,8 @@ elif args.mode == 'train' or args.mode == 'auto' or args.mode == 'manual':
                 # store the data set
                 img = cameraFeed.getLatestSnapShot(display=False)
                 img = cameraFeed.processSnapShot(img, display=True)
+                dir = carController.getDirectionAndMovement()
+
                 df = pd.DataFrame.from_records([{
                         "frame": img,
                         "key": dir}])
@@ -166,10 +165,11 @@ elif args.mode == 'train' or args.mode == 'auto' or args.mode == 'manual':
                 training_data = training_data.append(df)
 
         # stop the car
-        carController.stop()
+        carController.stop(wheelsStraight=True)
 
-        # save the data frame
-        training_data_file = time.strftime(args.datadir +
-                                           "autocarmodel-%Y%m%d-%H%M%S.df")
-        training_data.to_pickle(training_data_file)
-        logger.info("Saved training data to: " + training_data_file)
+        if args.mode == 'train':
+            # save the data frame
+            training_data_file = time.strftime(args.datadir +
+                                               "autocarmodel-%Y%m%d-%H%M%S.df")
+            training_data.to_pickle(training_data_file)
+            logger.info("Saved training data to: " + training_data_file)
