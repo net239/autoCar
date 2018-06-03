@@ -86,7 +86,20 @@ if __name__ == "__main__":
 
             # write the key on image
             img = row["frame"]
-            txt = 'key: 0x' + hex(row["key"])
+            key = row["key"]
+            d = "X"
+            m = "X"
+
+            if (key & carController.DIRECTION_LEFT):
+                d = "L"
+            elif (key & carController.DIRECTION_STRAIGHT):
+                d = "R"
+            elif (key & carController.MOVEMENT_FORWWARD):
+                m = "F"
+            elif (key & carController.MOVEMENT_REVERSE):
+                m = "R"
+
+            txt = 'key: ' + d + m
             font = cv2.FONT_HERSHEY_SIMPLEX
             cv2.putText(img, txt, (30, 30), font, 0.8,
                         (255, 255, 255), 1, cv2.LINE_AA)
@@ -133,9 +146,7 @@ if __name__ == "__main__":
                         capture = True
                     elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
                         carController.moveBack()
-
-                        # NOTE: do not capture back movement
-                        capture = False
+                        capture = True
                     elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
                         carController.turnLeft()
                         capture = True
@@ -151,7 +162,7 @@ if __name__ == "__main__":
                 elif event.type == pygame.KEYUP:
                     carController.stop()
 
-            if args.mode == 'train' and capture is True:
+            if args.mode == 'train':
 
                 # store the data set
                 img = cameraFeed.getLatestSnapShot(display=False)
