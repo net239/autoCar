@@ -1,5 +1,5 @@
 # url that will have latest snapshot
-LATEST_SNAPSHOT_URL: "http://192.168.86.33:8080/shot.jpg"
+LATEST_SNAPSHOT_URL: "http://192.168.86.37:8080/shot.jpg"
 
 # path to uno device board
 uno_device: /dev/cu.usbmodem1411
