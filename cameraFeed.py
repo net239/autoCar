@@ -2,6 +2,7 @@
 import numpy as np
 import cv2
 from skimage import io
+import urllib
 
 
 # This class get the camera feed from the andrpid phone
@@ -27,7 +28,9 @@ class cameraFeed:
     # get latest scene seen by camera
     def getLatestSnapShot(self, display=False):
         # fetch from url
-        img = io.imread(self.LATEST_SNAPSHOT_URL)
+        req = urllib.urlopen(self.LATEST_SNAPSHOT_URL)
+        arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
+        img = cv2.imdecode(arr, -1)  # 'Load it as it is'
 
         if display:
             # show the image
@@ -38,11 +41,11 @@ class cameraFeed:
     def processSnapShot(self, img, display=False):
 
         # convert to grey scale and slightly blur it
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img = cv2.GaussianBlur(img, (3, 3), 0)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # img = cv2.GaussianBlur(img, (3, 3), 0)
 
         # detect edges
-        img = self.auto_canny(img)
+        # img = self.auto_canny(img)
 
         if display:
             # show the image
