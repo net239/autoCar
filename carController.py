@@ -1,5 +1,5 @@
 from pluto import pluto
-
+import time
 
 # class to move the car based as per direction specified
 class carController:
@@ -71,11 +71,23 @@ class carController:
         self.board.pin(self.PIN_REVERSE).low()
         self.board.pin(self.PIN_FORWARD).high()
 
+        # sleep a few milliseconds
+        time.sleep(0.15)
+
+        self.board.pin(self.PIN_REVERSE).low()
+        self.board.pin(self.PIN_FORWARD).low()
+
         self.movement = self.MOVEMENT_FORWWARD
 
     def moveBack(self):
         self.board.pin(self.PIN_FORWARD).low()
         self.board.pin(self.PIN_REVERSE).high()
+
+        # sleep a few milliseconds
+        time.sleep(0.10)
+
+        self.board.pin(self.PIN_REVERSE).low()
+        self.board.pin(self.PIN_FORWARD).low()
 
         self.movement = self.MOVEMENT_REVERSE
 
@@ -96,4 +108,4 @@ class carController:
         return self.movement
 
     def getDirectionAndMovement(self):
-        return self.direction & self.movement
+        return (self.direction | self.movement)
