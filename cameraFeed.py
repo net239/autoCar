@@ -1,7 +1,6 @@
 # class to get camera feed
 import numpy as np
 import cv2
-from skimage import io
 import urllib
 
 
