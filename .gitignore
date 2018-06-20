@@ -116,3 +116,6 @@ pip-selfcheck.json
 
 #mac
 .DS_Store
+
+#specific ML databases
+MNIST_data/
