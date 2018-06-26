@@ -55,6 +55,9 @@ class myLittleImageClassifier:
         n_samples, n_features = self.X.shape
         ignore, n_classes = self.Y.shape
 
+        # initialize random seed
+        np.random.seed(1)
+
         ub = 1
         lb = -1
         self.syn0 = (ub-lb)*np.random.random((n_features, n_samples)) + lb
@@ -92,23 +95,19 @@ class myLittleImageClassifier:
         self.count_samples = 0
 
     # train the model on this batch
-    def trainOnExistingBatch(self):
+    def trainOnExistingBatch(self, iterations, showProgress=False):
 
         if self.count_samples <= 0:
             self.logger.error("No Samples to train on: %d", self.count_samples)
             return -1
 
-        # initialize random seed
-        np.random.seed(1)
-
         # use these to see progress of all datapoints in the network
-        track_layer1 = pd.DataFrame()
-        track_layer2 = pd.DataFrame()
-        track_error1 = pd.DataFrame()
-        track_error2 = pd.DataFrame()
+        if showProgress:
+            track_error1 = pd.DataFrame()
+            track_error2 = pd.DataFrame()
 
         # lets train our network
-        for j in xrange(self.count_samples):
+        for j in xrange(iterations):
 
             # Lets first apply the weights to the input and forward to layer1
             # and then to layer2
@@ -136,44 +135,80 @@ class myLittleImageClassifier:
             self.syn0 += np.dot(layer0.T, delta1)
 
             # store all data, so we can analyze them later
-            data = layer1.T
-            track_layer1 = track_layer1.append(pd.DataFrame(data),
-                                               ignore_index=True)
+            if showProgress:
+                data = error1.T
+                track_error1 = track_error1.append(pd.DataFrame(data),
+                                                   ignore_index=True)
 
-            data = self.syn0.T
-            track_layer2 = track_layer2.append(pd.DataFrame(data),
-                                               ignore_index=True)
+                data = error2.T
+                track_error2 = track_error2.append(pd.DataFrame(data),
+                                                   ignore_index=True)
 
-            data = error1.T
-            track_error1 = track_error1.append(pd.DataFrame(data),
-                                               ignore_index=True)
+        if showProgress:
+            # plot the data generated in above iterations
+            fig, axs = plt.subplots(2, 2, sharex=True, sharey=True)
+            axs[0, 0].plot(track_error1, label="error1")
+            axs[0, 0].set_title("error1")
 
-            data = error2.T
-            track_error2 = track_error2.append(pd.DataFrame(data),
-                                               ignore_index=True)
+            axs[0, 1].plot(track_error2, label="error2")
+            axs[0, 1].set_title("error2")
 
-        # plot the data generated in above iterations
-        fig, axs = plt.subplots(2, 3, sharex=True, sharey=True)
-        axs[0, 0].plot(track_layer1, label="layer1")
-        axs[0, 0].set_title("layer1")
-
-        axs[0, 1].plot(track_error1, label="error1")
-        axs[0, 1].set_title("error1")
-
-        axs[0, 2].plot(track_layer2, label="layer2")
-        axs[0, 2].set_title("layer2")
-
-        axs[1, 1].plot(track_error2, label="error2")
-        axs[1, 1].set_title("error2")
-
-        print layer2
-        plt.show()
+            plt.show()
 
         return 0
 
+    def predict(self, image):
+
+        # Lets first apply the weights to the input and forward to layer1
+        # and then to layer2
+        layer0 = image
+        layer1 = self.nonlin(np.dot(layer0, self.syn0))
+        layer2 = self.nonlin(np.dot(layer1, self.syn1))
+        Y = layer2
+
+        # round off
+        for n in xrange(numClasses):
+            Y[n] = round(Y[n], 2)
+
+        # find index of the maximum value
+        maxIndex = np.argmax(Y, axis=0)
+        return (Y, maxIndex)
+
+    def displayImage(self, image, title):
+        # display the image
+        image = image
+        image = np.array(image, dtype='float')
+        pixels = image.reshape((self.imageWidth, self.imageHeight))
+        plt.imshow(pixels, cmap='gray')
+        plt.title(title)
+        plt.show()
+
+    def trainOnImageSet(self, images, labels, showProgress=False):
+        self.clearCurrentBatch()
+
+        n = images.shape[0]
+        for i in xrange(n):
+            classifier.addToTrainingBatch(images[i],
+                                          labels[i])
+            logger.info("Images in batch: %d", classifier.getCountSamples())
+
+            if (classifier.getCountSamples() >= classifier.getBatchSize()):
+                classifier.trainOnExistingBatch(500)
+                classifier.clearCurrentBatch()
+
+        if (classifier.getCountSamples() > 0):
+            logger.info("training remaining samples")
+            classifier.trainOnExistingBatch(500, showProgress)
+            classifier.clearCurrentBatch()
+
+    def checkAccuracy(self, images, labels):
+        n = images.shape[0]
+        for i in xrange(n):
+            (Y, V) = classifier.predict(images[i])
+            classifier.displayImage(images[i], V)
+
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description='myLittleImageClassifier: ' +
                                      'test utility to train and evaluate',
                                      formatter_class=argparse.
@@ -217,7 +252,7 @@ if __name__ == "__main__":
     if args.mode == 'train':
         logger.info("Operating Mode: " + args.mode)
 
-        # read handwitten character images
+        # read handwritten character images
         mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
         maxImages = mnist.test.images.shape[0]
         imageWidth = int(math.sqrt(mnist.test.images.shape[1]))
@@ -229,19 +264,20 @@ if __name__ == "__main__":
                     maxImages, imageWidth, imageHeight, numClasses
                     )
 
+        # limit our world to first 1000 images
+        firstImage = 1
+        lastImage = 10000
+
         # create instance of a image classifier
         classifier = myLittleImageClassifier(logger,
                                              imageWidth,
                                              imageHeight,
-                                             batchSize=2)
-        for i in xrange(maxImages):
-            if (classifier.getCountSamples() >= classifier.getBatchSize()):
-                classifier.trainOnExistingBatch()
-                classifier.clearCurrentBatch()
-            else:
-                classifier.addToTrainingBatch(mnist.test.images[i],
-                                              mnist.test.labels[i])
+                                             batchSize=9)
 
-        if (classifier.getCountSamples() >= 0):
-            classifier.trainOnExistingBatch()
-            classifier.clearCurrentBatch()
+        classifier.trainOnImageSet(mnist.test.images[firstImage: lastImage],
+                                   mnist.test.labels[firstImage: lastImage],
+                                   showProgress=True)
+
+        # check accuracy on same image set
+        classifier.checkAccuracy(mnist.test.images[firstImage: lastImage],
+                                 mnist.test.labels[firstImage: lastImage])
