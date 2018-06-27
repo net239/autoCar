@@ -202,7 +202,6 @@ class myLittleImageClassifier:
     # and over again to adjust and readjust the weights
     # epochs is how many times we go over the training samples all over again
     def trainOnImageSet(self, images, labels,
-                        perBatchIterations=1,
                         epochs=5,
                         showProgress=True):
 
@@ -224,7 +223,7 @@ class myLittleImageClassifier:
 
                 # time to train?
                 if (is_last or self.getCountSamples() >= self.getBatchSize()):
-                    self.trainOnExistingBatch(perBatchIterations)
+                    self.trainOnExistingBatch(1)
                     self.clearCurrentBatch()
                     training_count = training_count + 1
 
@@ -335,11 +334,6 @@ if __name__ == "__main__":
                         required=False,
                         default=100)
 
-    parser.add_argument('-i', '--per_batch_iters', type=int,
-                        help='no of times to adjust weights per batch',
-                        required=False,
-                        default=1)
-
     args = parser.parse_args()
     print (args)
 
@@ -356,7 +350,7 @@ if __name__ == "__main__":
     logger.addHandler(logging.StreamHandler())
     logger.setLevel(logging.INFO)
 
-    if args.mode == 'train':
+    if args.mode == 'train' or args.mode == 'eval':
         logger.info("Operating Mode: " + args.mode)
 
         # read handwritten character images
@@ -372,8 +366,8 @@ if __name__ == "__main__":
                     )
 
         # limit our world to first 1000 images
-        firstImage = args.firstimage
-        lastImage = args.lastimage
+        images = mnist.test.images[args.firstimage: args.lastimage]
+        labels = mnist.test.labels[args.firstimage: args.lastimage]
 
         # create instance of a image classifier
         classifier = myLittleImageClassifier(logger,
@@ -387,17 +381,14 @@ if __name__ == "__main__":
             logger.info("Loading model " + args.model)
             classifier.loadModel(args.model)
 
-        classifier.trainOnImageSet(mnist.test.images[firstImage: lastImage],
-                                   mnist.test.labels[firstImage: lastImage],
-                                   perBatchIterations=args.per_batch_iters,
-                                   epochs=args.epochs
-                                   )
+        if args.mode == 'train':
+            classifier.trainOnImageSet(images, labels,
+                                       epochs=args.epochs
+                                       )
+
+            if args.save:
+                logger.info("Saving model " + args.model)
+                classifier.saveModel(args.model)
 
         # check accuracy on same image set
-        correct = classifier.checkAccuracy(
-                                 mnist.test.images[firstImage: lastImage],
-                                 mnist.test.labels[firstImage: lastImage])
-
-        if args.save:
-            logger.info("Saving model " + args.model)
-            classifier.saveModel(args.model)
+        correct = classifier.checkAccuracy(images, labels)
