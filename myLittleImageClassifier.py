@@ -13,6 +13,8 @@ class myLittleImageClassifier:
     # to construct input vector
     imageWidth = None
     imageHeight = None
+
+    # numbe rof samples to train in a batch
     batchSize = None
 
     # logger
@@ -33,8 +35,9 @@ class myLittleImageClassifier:
     # to be classified. minibatch size is number of images that
     # will be trained in one go
     def __init__(self, logger, imageWidth=28, imageHeight=28,
-                 batchSize=128,
-                 numClasses=10):
+                 batchSize=16,
+                 numClasses=10,
+                 layer2_neurons=15):
         self.logger = logger
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
@@ -60,8 +63,8 @@ class myLittleImageClassifier:
 
         ub = 1
         lb = -1
-        self.syn0 = (ub-lb)*np.random.random((n_features, n_samples)) + lb
-        self.syn1 = (ub-lb)*np.random.random((n_samples, n_classes)) + lb
+        self.syn0 = (ub-lb)*np.random.random((n_features, layer2_neurons)) + lb
+        self.syn1 = (ub-lb)*np.random.random((layer2_neurons, n_classes)) + lb
 
         self.logger.info("Initialized myLittleImageClassifier. X = %s Y = %s",
                          self.X.shape, self.Y.shape)
@@ -69,8 +72,8 @@ class myLittleImageClassifier:
     # sigmoid activation function and its derivative
     def nonlin(self, x, deriv=False):
         if (deriv is True):
-            return x*(1-x)
-        return 1 / (1 + np.exp(-x))
+            return x*(1.0-x)
+        return 1.0 / (1.0 + np.exp(-x))
 
     def getBatchSize(self):
         return self.batchSize
@@ -183,29 +186,51 @@ class myLittleImageClassifier:
         plt.title(title)
         plt.show()
 
-    def trainOnImageSet(self, images, labels, showProgress=False):
+    def trainOnImageSet(self, images, labels, showProgress=True):
         self.clearCurrentBatch()
 
         n = images.shape[0]
+        iterations = 1000
+        training_count = 0
         for i in xrange(n):
-            classifier.addToTrainingBatch(images[i],
-                                          labels[i])
-            logger.info("Images in batch: %d", classifier.getCountSamples())
+            self.addToTrainingBatch(images[i],
+                                    labels[i])
 
-            if (classifier.getCountSamples() >= classifier.getBatchSize()):
-                classifier.trainOnExistingBatch(500)
-                classifier.clearCurrentBatch()
+            if (self.getCountSamples() >= self.getBatchSize()):
+                self.trainOnExistingBatch(iterations)
+                self.clearCurrentBatch()
+                training_count = training_count + 1
 
-        if (classifier.getCountSamples() > 0):
-            logger.info("training remaining samples")
-            classifier.trainOnExistingBatch(500, showProgress)
-            classifier.clearCurrentBatch()
+                if (training_count % 100 == 0):
+                    logger.info("Images in batch: %d. Total:%d. i:%d tc:%d",
+                                self.getBatchSize(), n, i, training_count)
+
+                    if showProgress:
+                        self.checkAccuracy(images, labels)
+
+        if (self.getCountSamples() > 0):
+            self.trainOnExistingBatch(iterations)
+            self.clearCurrentBatch()
+            training_count = training_count + 1
+
+        logger.info("Images in batch: %d. Total:%d. i:%d tc:%d",
+                    self.getBatchSize(), n, i, training_count)
+        if showProgress:
+            self.checkAccuracy(images, labels)
 
     def checkAccuracy(self, images, labels):
         n = images.shape[0]
+        correct = 0
         for i in xrange(n):
-            (Y, V) = classifier.predict(images[i])
-            classifier.displayImage(images[i], V)
+            (Y, V) = self.predict(images[i])
+            maxIndex = np.argmax(labels[i], axis=0)
+            if (maxIndex == V):
+                correct = correct+1
+
+        logger.info("Correct %d out of %d. percentage=%2.2f%%",
+                    correct, n,
+                    (correct*1.0)/n * 100)
+        return correct
 
 
 if __name__ == "__main__":
@@ -266,18 +291,20 @@ if __name__ == "__main__":
 
         # limit our world to first 1000 images
         firstImage = 1
-        lastImage = 10000
+        lastImage = 1000
 
         # create instance of a image classifier
         classifier = myLittleImageClassifier(logger,
                                              imageWidth,
                                              imageHeight,
-                                             batchSize=9)
+                                             batchSize=1,
+                                             layer2_neurons=100)
 
         classifier.trainOnImageSet(mnist.test.images[firstImage: lastImage],
-                                   mnist.test.labels[firstImage: lastImage],
-                                   showProgress=True)
+                                   mnist.test.labels[firstImage: lastImage]
+                                   )
 
         # check accuracy on same image set
-        classifier.checkAccuracy(mnist.test.images[firstImage: lastImage],
+        correct = classifier.checkAccuracy(
+                                 mnist.test.images[firstImage: lastImage],
                                  mnist.test.labels[firstImage: lastImage])
