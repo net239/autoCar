@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from logging.handlers import TimedRotatingFileHandler
 from tensorflow.examples.tutorials.mnist import input_data
 import math
+import pickle
+import os
 
 
 class myLittleImageClassifier:
@@ -190,7 +192,7 @@ class myLittleImageClassifier:
         self.clearCurrentBatch()
 
         n = images.shape[0]
-        iterations = 1000
+        iterations = 10
         training_count = 0
         for i in xrange(n):
             self.addToTrainingBatch(images[i],
@@ -231,6 +233,15 @@ class myLittleImageClassifier:
                     correct, n,
                     (correct*1.0)/n * 100)
         return correct
+
+    def saveModel(self, filename):
+        model = {"sync0": self.syn0, "sync1": self.syn1}
+        pickle.dump(model, open(filename, "wb"))
+
+    def loadModel(self, filename):
+        model = pickle.load(open(filename, "rb"))
+        self.syn0 = model["sync0"]
+        self.syn1 = model["sync1"]
 
 
 if __name__ == "__main__":
@@ -291,7 +302,7 @@ if __name__ == "__main__":
 
         # limit our world to first 1000 images
         firstImage = 1
-        lastImage = 1000
+        lastImage = 5000
 
         # create instance of a image classifier
         classifier = myLittleImageClassifier(logger,
@@ -299,6 +310,11 @@ if __name__ == "__main__":
                                              imageHeight,
                                              batchSize=1,
                                              layer2_neurons=100)
+
+        # see if we have a saved model
+        if (os.path.isfile(args.model)):
+            logger.info("Loading model " + args.model)
+            classifier.loadModel(args.model)
 
         classifier.trainOnImageSet(mnist.test.images[firstImage: lastImage],
                                    mnist.test.labels[firstImage: lastImage]
@@ -308,3 +324,6 @@ if __name__ == "__main__":
         correct = classifier.checkAccuracy(
                                  mnist.test.images[firstImage: lastImage],
                                  mnist.test.labels[firstImage: lastImage])
+
+        logger.info("Saving model " + args.model)
+        classifier.saveModel(args.model)
