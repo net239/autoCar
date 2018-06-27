@@ -12,11 +12,13 @@ import os
 
 class myLittleImageClassifier:
 
-    # to construct input vector
+    # to construct input vector, image width and height are dimension
+    # of the input image - this will be flattened to a single
+    # dimension vector
     imageWidth = None
     imageHeight = None
 
-    # numbe rof samples to train in a batch
+    # number of samples to train in a batch
     batchSize = None
 
     # logger
@@ -26,17 +28,22 @@ class myLittleImageClassifier:
     X = None
     Y = None
 
-    # tracks number of samples currently stored
+    # tracks number of samples currently stored, in the batch
     count_samples = 0
 
-    # weight matrices
+    # weight matrices - two layer network
     syn0 = None
     syn1 = None
 
     # image width and height define the size of input images
     # to be classified. minibatch size is number of images that
     # will be trained in one go
-    def __init__(self, logger, imageWidth=28, imageHeight=28,
+    # imageWidth, Height, batchSize are explained above
+    # numClasses is number of classes in which the images
+    # are to be classified. e.g. 0 to 9 is total 10 digits
+    # layer2_neurons = number of neurons in layer2
+    def __init__(self, logger,
+                 imageWidth=28, imageHeight=28,
                  batchSize=16,
                  numClasses=10,
                  layer2_neurons=15):
@@ -53,7 +60,7 @@ class myLittleImageClassifier:
         # lets define two weight matrices for this 2 layer
         # fully connected network
         # the first weight matrix connects input X (layer0) to layer1
-        # and the second weight matrix connects inout from layer0 to layer2
+        # and the second weight matrix connects inout from layer1 to layer2
         # the weights are assigned randomly to start with and
         # are between -1 and 1, with mean as zero
         # number fo input features and number of samples
@@ -68,8 +75,10 @@ class myLittleImageClassifier:
         self.syn0 = (ub-lb)*np.random.random((n_features, layer2_neurons)) + lb
         self.syn1 = (ub-lb)*np.random.random((layer2_neurons, n_classes)) + lb
 
-        self.logger.info("Initialized myLittleImageClassifier. X = %s Y = %s",
-                         self.X.shape, self.Y.shape)
+        self.logger.info("Initialized myLittleImageClassifier " +
+                         "X = %s Y = %s syn0 = %s syn1 = %s",
+                         self.X.shape, self.Y.shape,
+                         self.syn0.shape, self.syn1.shape)
 
     # sigmoid activation function and its derivative
     def nonlin(self, x, deriv=False):
@@ -83,7 +92,7 @@ class myLittleImageClassifier:
     def getCountSamples(self):
         return self.count_samples
 
-    # add to training batch
+    # add a single image and label to training batch
     def addToTrainingBatch(self, image, label):
         if (self.count_samples < self.batchSize):
             self.X[self.count_samples] = image
@@ -94,19 +103,20 @@ class myLittleImageClassifier:
             self.logger.error("Batch already full: %d", self.count_samples)
             return -1
 
+    # empty any exisrtign training data
     def clearCurrentBatch(self):
         self.X.fill(0)
         self.Y.fill(0)
         self.count_samples = 0
 
-    # train the model on this batch
+    # train the model on the existing stored batch
     def trainOnExistingBatch(self, iterations, showProgress=False):
 
         if self.count_samples <= 0:
             self.logger.error("No Samples to train on: %d", self.count_samples)
             return -1
 
-        # use these to see progress of all datapoints in the network
+        # use these to see progress of all iterations in the network
         if showProgress:
             track_error1 = pd.DataFrame()
             track_error2 = pd.DataFrame()
@@ -125,7 +135,7 @@ class myLittleImageClassifier:
             error2 = self.Y - layer2
 
             # see how much we need to adjust weights
-            # error times slope
+            # error times slope of the output
             delta2 = error2 * self.nonlin(layer2, deriv=True)
 
             # how much did each l1 value contribute to the l2 error
@@ -160,8 +170,7 @@ class myLittleImageClassifier:
 
             plt.show()
 
-        return 0
-
+    # predict using the currently stored model
     def predict(self, image):
 
         # Lets first apply the weights to the input and forward to layer1
@@ -179,8 +188,8 @@ class myLittleImageClassifier:
         maxIndex = np.argmax(Y, axis=0)
         return (Y, maxIndex)
 
+    # display the image
     def displayImage(self, image, title):
-        # display the image
         image = image
         image = np.array(image, dtype='float')
         pixels = image.reshape((self.imageWidth, self.imageHeight))
@@ -188,38 +197,48 @@ class myLittleImageClassifier:
         plt.title(title)
         plt.show()
 
-    def trainOnImageSet(self, images, labels, showProgress=True):
-        self.clearCurrentBatch()
+    # train on this given set of images and labels
+    # perSampleIterations is number of times the same batch is passed over
+    # and over again to adjust and readjust the weights
+    # epochs is how many times we go over the training samples all over again
+    def trainOnImageSet(self, images, labels,
+                        perBatchIterations=1,
+                        epochs=5,
+                        showProgress=True):
 
-        n = images.shape[0]
-        iterations = 10
-        training_count = 0
-        for i in xrange(n):
-            self.addToTrainingBatch(images[i],
-                                    labels[i])
+        nImages = images.shape[0]
+        for epoch in xrange(epochs):
 
-            if (self.getCountSamples() >= self.getBatchSize()):
-                self.trainOnExistingBatch(iterations)
-                self.clearCurrentBatch()
-                training_count = training_count + 1
-
-                if (training_count % 100 == 0):
-                    logger.info("Images in batch: %d. Total:%d. i:%d tc:%d",
-                                self.getBatchSize(), n, i, training_count)
-
-                    if showProgress:
-                        self.checkAccuracy(images, labels)
-
-        if (self.getCountSamples() > 0):
-            self.trainOnExistingBatch(iterations)
             self.clearCurrentBatch()
-            training_count = training_count + 1
+            training_count = 0
+            is_last = False
+            for i in xrange(nImages):
 
-        logger.info("Images in batch: %d. Total:%d. i:%d tc:%d",
-                    self.getBatchSize(), n, i, training_count)
-        if showProgress:
-            self.checkAccuracy(images, labels)
+                # keep track if we are at the last image in the batch
+                if i >= nImages-1:
+                    is_last = True
 
+                # add to batch
+                self.addToTrainingBatch(images[i],
+                                        labels[i])
+
+                # time to train?
+                if (is_last or self.getCountSamples() >= self.getBatchSize()):
+                    self.trainOnExistingBatch(perBatchIterations)
+                    self.clearCurrentBatch()
+                    training_count = training_count + 1
+
+                    if (is_last or (training_count % 100 == 0)):
+                        logger.info("epoch:%d batch: %d total_images:%d " +
+                                    "iter:%d training_count:%d",
+                                    epoch,
+                                    self.getBatchSize(), nImages, i,
+                                    training_count)
+
+                        if showProgress:
+                            self.checkAccuracy(images, labels)
+
+    # check accuracy against given set of images
     def checkAccuracy(self, images, labels):
         n = images.shape[0]
         correct = 0
@@ -234,14 +253,26 @@ class myLittleImageClassifier:
                     (correct*1.0)/n * 100)
         return correct
 
+    # save existign model to given file
     def saveModel(self, filename):
         model = {"sync0": self.syn0, "sync1": self.syn1}
         pickle.dump(model, open(filename, "wb"))
 
+    # load model from the given file
     def loadModel(self, filename):
         model = pickle.load(open(filename, "rb"))
         self.syn0 = model["sync0"]
         self.syn1 = model["sync1"]
+
+
+# to take booleans on command line
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 if __name__ == "__main__":
@@ -260,14 +291,54 @@ if __name__ == "__main__":
                         required=False, default='data/')
 
     parser.add_argument('-o', '--mode',
-                        help='mode: train - train new model/ ' +
-                             'show - display model data',
+                        help='mode: train - train new model or ' +
+                             'mode: eval  - evaluate existing model',
                         required=False, default='train')
 
     parser.add_argument('-m', '--model',
                         help='Model file',
                         required=False,
                         default='data/myLittleImageClassifier.df')
+
+    parser.add_argument('-f', '--firstimage', type=int,
+                        help='index of the first image to be used in the set',
+                        required=False,
+                        default=0)
+
+    parser.add_argument('-e', '--lastimage', type=int,
+                        help='index of the last image to be used in the set',
+                        required=False,
+                        default=1000)
+
+    parser.add_argument('-s', '--save', type=str2bool,
+                        help='save the trained model',
+                        required=False,
+                        default=True)
+
+    parser.add_argument('-a', '--load', type=str2bool,
+                        help='load the existing trained model',
+                        required=False,
+                        default=True)
+
+    parser.add_argument('-p', '--epochs', type=int,
+                        help='epochs - how many times to train the set',
+                        required=False,
+                        default=5)
+
+    parser.add_argument('-b', '--batchsize', type=int,
+                        help='batch size: number of samples to train together',
+                        required=False,
+                        default=1)
+
+    parser.add_argument('-y', '--layer2', type=int,
+                        help='number of neurons in layer2',
+                        required=False,
+                        default=100)
+
+    parser.add_argument('-i', '--per_batch_iters', type=int,
+                        help='no of times to adjust weights per batch',
+                        required=False,
+                        default=1)
 
     args = parser.parse_args()
     print (args)
@@ -301,23 +372,25 @@ if __name__ == "__main__":
                     )
 
         # limit our world to first 1000 images
-        firstImage = 1
-        lastImage = 5000
+        firstImage = args.firstimage
+        lastImage = args.lastimage
 
         # create instance of a image classifier
         classifier = myLittleImageClassifier(logger,
                                              imageWidth,
                                              imageHeight,
-                                             batchSize=1,
-                                             layer2_neurons=100)
+                                             batchSize=args.batchsize,
+                                             layer2_neurons=args.layer2)
 
         # see if we have a saved model
-        if (os.path.isfile(args.model)):
+        if (args.load and os.path.isfile(args.model)):
             logger.info("Loading model " + args.model)
             classifier.loadModel(args.model)
 
         classifier.trainOnImageSet(mnist.test.images[firstImage: lastImage],
-                                   mnist.test.labels[firstImage: lastImage]
+                                   mnist.test.labels[firstImage: lastImage],
+                                   perBatchIterations=args.per_batch_iters,
+                                   epochs=args.epochs
                                    )
 
         # check accuracy on same image set
@@ -325,5 +398,6 @@ if __name__ == "__main__":
                                  mnist.test.images[firstImage: lastImage],
                                  mnist.test.labels[firstImage: lastImage])
 
-        logger.info("Saving model " + args.model)
-        classifier.saveModel(args.model)
+        if args.save:
+            logger.info("Saving model " + args.model)
+            classifier.saveModel(args.model)
