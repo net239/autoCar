@@ -13,7 +13,7 @@ networkx==2.1
 numpy==1.14.3
 opencv-python==3.4.1.15
 pandas==0.23.0
-Pillow==5.1.0
+Pillow==9.3.0
 pluto==0.1.0
 pyFirmata==1.0.3
 pygame==1.9.3
